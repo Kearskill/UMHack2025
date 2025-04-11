@@ -3,6 +3,8 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
+
+from cybo_api import get_data
 from datetime import datetime, timedelta
 
 # Page configuration

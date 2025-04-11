@@ -22,4 +22,23 @@ async def main():
     df = pd.DataFrame(data)
     print(df)
 
-asyncio.run(main())
+async def get_data(startyear, startmonth,startday,endyear,endmonth,endday):
+    data = await cybotrade_datasource.query_paginated(
+        api_key=API_KEY,
+        topic='cryptoquant|btc/inter-entity-flows/miner-to-miner?from_miner=f2pool&to_miner=all_miner&window=hour',
+        start_time=datetime(year=startyear, month=startmonth, day=startday, tzinfo=timezone.utc),
+        end_time=datetime(year=endyear, month=endmonth, day=endday, tzinfo=timezone.utc)
+    )
+    df = pd.DataFrame(data)
+    print(df)
+
+async def get_data_latest():
+    data = await cybotrade_datasource.query_paginated(
+        api_key=API_KEY,
+        topic='cryptoquant|btc/inter-entity-flows/miner-to-miner?from_miner=f2pool&to_miner=all_miner&window=hour',
+        limit=10000
+    )
+    df = pd.DataFrame(data)
+    print(df)
+
+asyncio.run(main()) # test if api key ok
