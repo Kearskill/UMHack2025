@@ -1,4 +1,3 @@
-# Streamlit frontend
 import streamlit as st
 import pandas as pd
 import yfinance as yf
@@ -7,10 +6,12 @@ from datetime import datetime, timedelta
 import numpy as np
 import time
 
-# streamlit run app.py
+from cybo_api import get_data
+from datetime import datetime, timedelta
 
 # Page configuration
 st.set_page_config(
+
     page_title="Crypto Trading Signal Dashboard",
     layout="wide",
     initial_sidebar_state="expanded"
