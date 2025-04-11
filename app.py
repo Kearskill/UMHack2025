@@ -6,12 +6,11 @@ from datetime import datetime, timedelta
 import numpy as np
 import time
 
-from cybo_api import get_data, get_all_crypto_info
+from cybo_api import get_data, get_crypto_info
 from datetime import datetime, timedelta
 
 # Page configuration
 st.set_page_config(
-
     page_title="Crypto Trading Signal Dashboard",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -31,47 +30,6 @@ st.markdown("""
 
 # Title
 st.title("🚀 Crypto Trading Signal Dashboard")
-
-# Add a new section for cryptocurrency overview
-st.header("📊 Cryptocurrency Overview")
-
-# Fetch and display all cryptocurrency data
-with st.spinner('Fetching cryptocurrency data...'):
-    crypto_df = get_all_crypto_info()
-
-if not crypto_df.empty:
-    # Display cryptocurrency data in a grid
-    cols = st.columns(2)
-    
-    with cols[0]:
-        st.subheader("Market Overview")
-        st.dataframe(
-            crypto_df[['name', 'current_price', 'market_cap', 'volume_24h']].rename(columns={
-                'name': 'Name',
-                'current_price': 'Price (USD)',
-                'market_cap': 'Market Cap',
-                'volume_24h': '24h Volume'
-            }).style.format({
-                'Price (USD)': '${:,.2f}',
-                'Market Cap': '${:,.0f}',
-                '24h Volume': '${:,.0f}'
-            })
-        )
-    
-    with cols[1]:
-        st.subheader("Supply Information")
-        st.dataframe(
-            crypto_df[['name', 'circulating_supply', 'total_supply', 'max_supply']].rename(columns={
-                'name': 'Name',
-                'circulating_supply': 'Circulating Supply',
-                'total_supply': 'Total Supply',
-                'max_supply': 'Max Supply'
-            }).style.format({
-                'Circulating Supply': '{:,.0f}',
-                'Total Supply': '{:,.0f}',
-                'Max Supply': '{:,.0f}'
-            })
-        )
 
 # Cryptocurrency selection
 crypto_options = {
@@ -169,8 +127,47 @@ def fetch_crypto_data(symbol, days):
 # Get data
 with st.spinner('Fetching cryptocurrency data...'):
     df = fetch_crypto_data(crypto_options[selected_crypto], timeframe_days[timeframe])
+    crypto_info = get_crypto_info(crypto_options[selected_crypto])
 
-if not df.empty:
+if not df.empty and crypto_info:
+    # Display key metrics in a grid
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        current_price = float(df['Close'].iloc[-1])
+        st.metric("Current Price", f"${current_price:,.2f}")
+        market_cap = crypto_info['market_cap']
+        st.metric("Market Cap", f"${market_cap:,.0f}" if market_cap != "N/A" else "N/A")
+    
+    with col2:
+        daily_volume = float(df['Volume'].iloc[-1])
+        st.metric("24h Volume", f"${daily_volume:,.0f}")
+        price_change = float(df['Close'].iloc[-1] - df['Close'].iloc[-2])
+        price_change_pct = float((price_change / df['Close'].iloc[-2]) * 100)
+        st.metric("24h Change", f"{price_change_pct:.2f}%")
+    
+    with col3:
+        ath = crypto_info['all_time_high']
+        st.metric("All Time High", f"${ath:,.2f}" if ath != "N/A" else "N/A")
+        atl = crypto_info['all_time_low']
+        st.metric("All Time Low", f"${atl:,.2f}" if atl != "N/A" else "N/A")
+    
+    # Display supply information
+    st.subheader("Supply Information")
+    supply_col1, supply_col2, supply_col3 = st.columns(3)
+    
+    with supply_col1:
+        circ_supply = crypto_info['circulating_supply']
+        st.metric("Circulating Supply", f"{circ_supply:,.0f}" if circ_supply != "N/A" else "N/A")
+    
+    with supply_col2:
+        total_supply = crypto_info['total_supply']
+        st.metric("Total Supply", f"{total_supply:,.0f}" if total_supply != "N/A" else "N/A")
+    
+    with supply_col3:
+        max_supply = crypto_info['max_supply']
+        st.metric("Max Supply", f"{max_supply:,.0f}" if max_supply != "N/A" else "N/A")
+
     # Calculate technical indicators
     def calculate_signals(df):
         # Simple example using Moving Averages
@@ -239,22 +236,6 @@ if not df.empty:
             <h2 style='color: black; margin: 0;'>Current Signal: {current_signal}</h2>
         </div>
     """, unsafe_allow_html=True)
-
-    # Display key metrics
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        current_price = float(df['Close'].iloc[-1])  # Convert to float
-        st.metric("Current Price", f"${current_price:.2f}")
-
-    with col2:
-        price_change = float(df['Close'].iloc[-1] - df['Close'].iloc[-2])  # Convert to float
-        price_change_pct = float((price_change / df['Close'].iloc[-2]) * 100)  # Convert to float
-        st.metric("Price Change", f"${price_change:.2f}", f"{price_change_pct:.2f}%")
-
-    with col3:
-        daily_volume = float(df['Volume'].iloc[-1])  # Convert to float
-        st.metric("24h Volume", f"${daily_volume:,.0f}")
 
 else:
     st.error("""

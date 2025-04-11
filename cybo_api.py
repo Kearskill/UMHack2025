@@ -32,19 +32,27 @@ def get_crypto_info(symbol):
         crypto = yf.Ticker(symbol)
         info = crypto.info
         
+        def get_value_or_na(value, default=0):
+            return value if value and value != 0 else "N/A"
+        
+        # Try different possible keys for max supply
+        max_supply = info.get('maxSupply', 
+                    info.get('totalSupply', 
+                    info.get('circulatingSupply', 0)))
+        
         return {
             'symbol': symbol,
             'name': CRYPTO_SYMBOLS.get(symbol, 'Unknown'),
-            'current_price': info.get('currentPrice', 0),
-            'market_cap': info.get('marketCap', 0),
-            'total_supply': info.get('totalSupply', 0),
-            'max_supply': info.get('maxSupply', 0),
-            'circulating_supply': info.get('circulatingSupply', 0),
-            'volume_24h': info.get('volume24Hr', 0),
-            'price_change_24h': info.get('priceChange24Hr', 0),
-            'price_change_percent_24h': info.get('priceChangePercent24Hr', 0),
-            'all_time_high': info.get('allTimeHigh', 0),
-            'all_time_low': info.get('allTimeLow', 0),
+            'current_price': get_value_or_na(info.get('currentPrice')),
+            'market_cap': get_value_or_na(info.get('marketCap')),
+            'total_supply': get_value_or_na(info.get('totalSupply', info.get('circulatingSupply'))),
+            'max_supply': get_value_or_na(max_supply),
+            'circulating_supply': get_value_or_na(info.get('circulatingSupply')),
+            'volume_24h': get_value_or_na(info.get('volume24Hr')),
+            'price_change_24h': get_value_or_na(info.get('priceChange24Hr')),
+            'price_change_percent_24h': get_value_or_na(info.get('priceChangePercent24Hr')),
+            'all_time_high': get_value_or_na(info.get('fiftyTwoWeekHigh', info.get('allTimeHigh'))),
+            'all_time_low': get_value_or_na(info.get('fiftyTwoWeekLow', info.get('allTimeLow'))),
             'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }
     except Exception as e:
@@ -90,4 +98,6 @@ async def get_data_latest():
     df = pd.DataFrame(data)
     print(df)
 
-asyncio.run(main()) # test if api key ok
+# Only run main() if this file is executed directly
+if __name__ == "__main__":
+    asyncio.run(main()) # test if api key ok
