@@ -1,297 +1,222 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
-import plotly.express as px
+import yfinance as yf
 import plotly.graph_objects as go
+from datetime import datetime, timedelta
+import numpy as np
+import time
 
 from cybo_api import get_data
 from datetime import datetime, timedelta
 
 # Page configuration
 st.set_page_config(
-    page_title="Financial Dashboard",
-    page_icon="💰",
+
+    page_title="Crypto Trading Signal Dashboard",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS
+# Custom CSS for better styling
 st.markdown("""
     <style>
     .main {
-        background-color: #F5F5F5;
+        padding: 20px;
     }
-    .sidebar .sidebar-content {
-        background-color: #2C3E50;
-        color: white;
-    }
-    .widget-label {
-        color: white !important;
-    }
-    h1, h2, h3 {
-        color: #2C3E50;
+    .stSelectbox {
+        margin-bottom: 20px;
     }
     </style>
-    """, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
+# Title
+st.title("🚀 Crypto Trading Signal Dashboard")
 
-# Sample data generation functions
-def generate_portfolio_data():
-    np.random.seed(42)
-    assets = ['Stocks', 'Bonds', 'Real Estate', 'Cash', 'Commodities']
-    allocations = np.random.dirichlet(np.ones(5), size=1)[0] * 100
-    returns = np.random.normal(0.05, 0.15, 5)
-    data = {
-        'Asset': assets,
-        'Allocation (%)': allocations.round(2),
-        'Annual Return (%)': (returns * 100).round(2)
-    }
-    return pd.DataFrame(data)
+# Cryptocurrency selection
+crypto_options = {
+    "Bitcoin": "BTC-USD",  # Yahoo Finance format
+    "Ethereum": "ETH-USD",  # Yahoo Finance format
+    "XRP": "XRP-USD"       # Yahoo Finance format
+}
 
+selected_crypto = st.selectbox(
+    "Select Cryptocurrency",
+    list(crypto_options.keys())
+)
 
-def generate_transaction_history():
-    np.random.seed(42)
-    dates = pd.date_range(end=datetime.today(), periods=30).date
-    categories = ['Salary', 'Investment', 'Groceries', 'Utilities', 'Entertainment', 'Transport']
-    amounts = np.random.randint(50, 2000, 30) * np.random.choice([1, -1], 30)
-    descriptions = [f"Transaction {i + 1}" for i in range(30)]
+# Time period selection
+timeframe = st.selectbox(
+    "Select Timeframe",
+    ["1D", "5D", "1M", "3M", "6M", "1Y"]
+)
 
-    data = {
-        'Date': dates,
-        'Description': descriptions,
-        'Category': np.random.choice(categories, 30),
-        'Amount': amounts
-    }
-    return pd.DataFrame(data).sort_values('Date', ascending=False)
+# Convert timeframe to days
+timeframe_days = {
+    "1D": 1,
+    "5D": 5,
+    "1M": 30,
+    "3M": 90,
+    "6M": 180,
+    "1Y": 365
+}
 
+@st.cache_data(ttl=300)  # Cache for 5 minutes
+def fetch_crypto_data(symbol, days):
+    try:
+        # Calculate date range
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=days)
+        
+        # For 1D and 5D, use 1h interval, otherwise use 1d
+        interval = "1h" if days <= 5 else "1d"
+        
+        # Download data with retries
+        for attempt in range(3):  # Try 3 times
+            try:
+                df = yf.download(
+                    tickers=symbol,
+                    start=start_date,
+                    end=end_date,
+                    interval=interval,
+                    progress=False,
+                    threads=False,  # Disable multi-threading to avoid potential issues
+                    timeout=10
+                )
+                if not df.empty:
+                    break
+            except Exception as e:
+                if attempt == 2:  # Last attempt
+                    raise e
+                time.sleep(1)  # Wait before retry
+        
+        if df.empty:
+            st.error(f"No data available for {symbol}. Trying alternative symbol format...")
+            # Try alternative symbol format
+            alt_symbol = symbol.replace('-', '')  # Try without hyphen
+            df = yf.download(
+                tickers=alt_symbol,
+                start=start_date,
+                end=end_date,
+                interval=interval,
+                progress=False,
+                threads=False
+            )
+        
+        if df.empty:
+            st.error(f"No data available for {symbol} or {alt_symbol}")
+            return pd.DataFrame()
+            
+        # Ensure all required columns exist
+        required_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
+        if not all(col in df.columns for col in required_columns):
+            st.error(f"Missing required price data for {symbol}")
+            return pd.DataFrame()
+            
+        return df
+        
+    except Exception as e:
+        st.error(f"Error fetching data: {str(e)}")
+        return pd.DataFrame()
 
-def generate_stock_data():
-    np.random.seed(42)
-    dates = pd.date_range(start='2023-01-01', end=datetime.today())
-    stocks = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA']
-    data = []
+# Get data
+with st.spinner('Fetching cryptocurrency data...'):
+    df = fetch_crypto_data(crypto_options[selected_crypto], timeframe_days[timeframe])
 
-    for stock in stocks:
-        prices = np.cumprod(1 + np.random.normal(0.001, 0.02, len(dates))) * 100
-        for date, price in zip(dates, prices):
-            data.append({
-                'Date': date,
-                'Stock': stock,
-                'Price': round(price, 2)
-            })
+if not df.empty:
+    # Calculate technical indicators
+    def calculate_signals(df):
+        # Simple example using Moving Averages
+        df['SMA20'] = df['Close'].rolling(window=20, min_periods=1).mean()
+        df['SMA50'] = df['Close'].rolling(window=50, min_periods=1).mean()
+        
+        # Generate trading signals (simple example)
+        df['Signal'] = 'HOLD'
+        df.loc[df['SMA20'] > df['SMA50'], 'Signal'] = 'BUY'
+        df.loc[df['SMA20'] < df['SMA50'], 'Signal'] = 'SELL'
+        
+        return df
 
-    return pd.DataFrame(data)
+    df = calculate_signals(df)
 
+    # Create the main price chart
+    fig = go.Figure()
 
-# Sidebar
-with st.sidebar:
-    st.title("Financial Dashboard")
+    # Add candlestick chart
+    fig.add_trace(go.Candlestick(
+        x=df.index,
+        open=df['Open'],
+        high=df['High'],
+        low=df['Low'],
+        close=df['Close'],
+        name='Price'
+    ))
 
-    st.header("Navigation")
-    page = st.radio("Go to", ["Overview", "Portfolio", "Transactions", "Investments", "Budget"])
+    # Add moving averages
+    fig.add_trace(go.Scatter(
+        x=df.index,
+        y=df['SMA20'],
+        name='20 Period MA',
+        line=dict(color='orange')
+    ))
 
-    st.header("Settings")
-    currency = st.selectbox("Currency", ["USD", "EUR", "GBP", "JPY"])
-    start_date = st.date_input("Start Date", datetime.today() - timedelta(days=365))
-    end_date = st.date_input("End Date", datetime.today())
+    fig.add_trace(go.Scatter(
+        x=df.index,
+        y=df['SMA50'],
+        name='50 Period MA',
+        line=dict(color='blue')
+    ))
 
-    st.header("Account")
-    st.metric("Total Balance", "$45,678.90")
-    st.progress(75)
-    st.caption("75% of annual savings goal")
-
-# Main content
-if page == "Overview":
-    st.title("Financial Overview")
-
-    # KPI cards
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Net Worth", "$125,432.10", "5.2%")
-    with col2:
-        st.metric("Monthly Income", "$5,200.00", "3.1%")
-    with col3:
-        st.metric("Monthly Expenses", "$3,850.50", "-2.4%")
-
-    # Charts
-    st.subheader("Monthly Cash Flow")
-    cash_flow_data = pd.DataFrame({
-        'Month': pd.date_range(start='2023-01-01', periods=12, freq='M').strftime('%b %Y'),
-        'Income': np.random.randint(4000, 6000, 12),
-        'Expenses': np.random.randint(3000, 4500, 12)
-    })
-    fig = px.bar(cash_flow_data, x='Month', y=['Income', 'Expenses'], barmode='group')
-    st.plotly_chart(fig, use_container_width=True)
-
-    # Net worth trend
-    st.subheader("Net Worth Trend")
-    net_worth_data = pd.DataFrame({
-        'Date': pd.date_range(start='2023-01-01', periods=12, freq='ME'),
-        'Net Worth': np.cumsum(np.random.normal(5000, 2000, 12)) + 100000
-    })
-    fig = px.line(net_worth_data, x='Date', y='Net Worth')
-    st.plotly_chart(fig, use_container_width=True)
-
-elif page == "Portfolio":
-    st.title("Investment Portfolio")
-
-    portfolio_data = generate_portfolio_data()
-
-    col1, col2 = st.columns([1, 2])
-    with col1:
-        st.subheader("Asset Allocation")
-        fig = px.pie(portfolio_data, values='Allocation (%)', names='Asset')
-        st.plotly_chart(fig, use_container_width=True)
-
-    with col2:
-        st.subheader("Portfolio Performance")
-        fig = px.bar(portfolio_data, x='Asset', y='Annual Return (%)')
-        st.plotly_chart(fig, use_container_width=True)
-
-    st.subheader("Portfolio Details")
-    st.dataframe(portfolio_data.style.format({
-        'Allocation (%)': '{:.2f}%',
-        'Annual Return (%)': '{:.2f}%'
-    }))
-
-elif page == "Transactions":
-    st.title("Transaction History")
-
-    transaction_data = generate_transaction_history()
-
-    # Filters
-    col1, col2 = st.columns(2)
-    with col1:
-        category_filter = st.multiselect(
-            "Filter by Category",
-            options=transaction_data['Category'].unique(),
-            default=transaction_data['Category'].unique()
-        )
-    with col2:
-        date_filter = st.date_input(
-            "Filter by Date Range",
-            value=[start_date, end_date]
-        )
-
-    filtered_data = transaction_data[
-        (transaction_data['Category'].isin(category_filter)) &
-        (transaction_data['Date'].between(date_filter[0], date_filter[1]))
-        ]
-
-    # Summary stats
-    income = filtered_data[filtered_data['Amount'] > 0]['Amount'].sum()
-    expenses = filtered_data[filtered_data['Amount'] < 0]['Amount'].sum()
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric("Total Income", f"${income:,.2f}")
-    with col2:
-        st.metric("Total Expenses", f"${abs(expenses):,.2f}")
-
-    # Transaction table
-    st.subheader("Transaction Details")
-    st.dataframe(filtered_data.style.format({
-        'Amount': '${:,.2f}'
-    }))
-
-    # Spending by category
-    st.subheader("Spending by Category")
-    spending_data = filtered_data[filtered_data['Amount'] < 0].groupby('Category')['Amount'].sum().reset_index()
-    spending_data['Amount'] = spending_data['Amount'].abs()
-    fig = px.bar(spending_data, x='Category', y='Amount')
-    st.plotly_chart(fig, use_container_width=True)
-
-elif page == "Investments":
-    st.title("Investment Performance")
-
-    stock_data = generate_stock_data()
-    selected_stocks = st.multiselect(
-        "Select Stocks",
-        options=stock_data['Stock'].unique(),
-        default=stock_data['Stock'].unique()[:3]
+    # Update layout
+    fig.update_layout(
+        title=f"{selected_crypto} Price Chart",
+        yaxis_title="Price (USD)",
+        xaxis_title="Date",
+        template="plotly_dark",
+        height=600
     )
 
-    filtered_data = stock_data[
-        (stock_data['Stock'].isin(selected_stocks)) &
-        (stock_data['Date'].between(pd.to_datetime(start_date), pd.to_datetime(end_date)))
-        ]
-
-    # Price trends
-    st.subheader("Price Trends")
-    fig = px.line(filtered_data, x='Date', y='Price', color='Stock')
+    # Display the chart
     st.plotly_chart(fig, use_container_width=True)
 
-    # Returns calculation
-    st.subheader("Returns Analysis")
-    returns_data = filtered_data.pivot(index='Date', columns='Stock', values='Price')
-    returns_data = returns_data.pct_change().dropna()
+    # Display current trading signal
+    current_signal = df['Signal'].iloc[-1]
+    signal_color = {
+        'BUY': 'green',
+        'SELL': 'red',
+        'HOLD': 'yellow'
+    }
 
-    col1, col2 = st.columns(2)
+    st.markdown(f"""
+        <div style='background-color: {signal_color[current_signal]}; padding: 20px; border-radius: 10px; text-align: center;'>
+            <h2 style='color: black; margin: 0;'>Current Signal: {current_signal}</h2>
+        </div>
+    """, unsafe_allow_html=True)
+
+    # Display key metrics
+    col1, col2, col3 = st.columns(3)
+
     with col1:
-        st.metric("Average Daily Return", f"{returns_data.mean().mean():.2%}")
-    with col2:
-        st.metric("Volatility", f"{returns_data.std().mean():.2%}")
-
-    # Correlation matrix
-    st.subheader("Correlation Matrix")
-    fig = px.imshow(returns_data.corr(), text_auto=True)
-    st.plotly_chart(fig, use_container_width=True)
-
-elif page == "Budget":
-    st.title("Budget Planner")
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader("Income Sources")
-        income_sources = pd.DataFrame({
-            'Source': ['Salary', 'Freelance', 'Investments', 'Other'],
-            'Amount': [4000, 800, 500, 200]
-        })
-        st.dataframe(income_sources.style.format({
-            'Amount': '${:,.2f}'
-        }))
-
-        new_source = st.text_input("Add New Income Source")
-        new_amount = st.number_input("Amount", min_value=0.0, format="%.2f")
-        if st.button("Add Income Source"):
-            st.success(f"Added {new_source}: ${new_amount:,.2f}")
+        current_price = float(df['Close'].iloc[-1])  # Convert to float
+        st.metric("Current Price", f"${current_price:.2f}")
 
     with col2:
-        st.subheader("Expense Categories")
-        expense_categories = pd.DataFrame({
-            'Category': ['Housing', 'Food', 'Transport', 'Entertainment', 'Utilities'],
-            'Budget': [1200, 600, 300, 200, 150],
-            'Actual': [1250, 550, 320, 180, 160]
-        })
-        st.dataframe(expense_categories.style.format({
-            'Budget': '${:,.2f}',
-            'Actual': '${:,.2f}'
-        }))
+        price_change = float(df['Close'].iloc[-1] - df['Close'].iloc[-2])  # Convert to float
+        price_change_pct = float((price_change / df['Close'].iloc[-2]) * 100)  # Convert to float
+        st.metric("Price Change", f"${price_change:.2f}", f"{price_change_pct:.2f}%")
 
-        new_category = st.text_input("Add New Expense Category")
-        new_budget = st.number_input("Budget Amount", min_value=0.0, format="%.2f")
-        if st.button("Add Expense Category"):
-            st.success(f"Added {new_category}: ${new_budget:,.2f}")
+    with col3:
+        daily_volume = float(df['Volume'].iloc[-1])  # Convert to float
+        st.metric("24h Volume", f"${daily_volume:,.0f}")
 
-    # Budget vs Actual
-    st.subheader("Budget vs Actual")
-    fig = go.Figure()
-    fig.add_trace(go.Bar(
-        x=expense_categories['Category'],
-        y=expense_categories['Budget'],
-        name='Budget'
-    ))
-    fig.add_trace(go.Bar(
-        x=expense_categories['Category'],
-        y=expense_categories['Actual'],
-        name='Actual'
-    ))
-    st.plotly_chart(fig, use_container_width=True)
-
-# Footer
-st.markdown("---")
-st.markdown("""
-    *Financial Dashboard Template*  
-    *Created with Streamlit*  
-    *Data is simulated for demonstration purposes*
-""")
+else:
+    st.error("""
+    Unable to fetch cryptocurrency data. This could be due to:
+    1. Network connectivity issues
+    2. Market hours (some data may not be available during certain hours)
+    3. Invalid symbol
+    
+    Please try:
+    1. Refreshing the page
+    2. Selecting a different timeframe
+    3. Checking your internet connection
+    """)
