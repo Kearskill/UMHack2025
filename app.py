@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 import numpy as np
 import time
 
-from cybo_api import get_data
+from cybo_api import get_data, get_all_crypto_info
 from datetime import datetime, timedelta
 
 # Page configuration
@@ -32,11 +32,59 @@ st.markdown("""
 # Title
 st.title("🚀 Crypto Trading Signal Dashboard")
 
+# Add a new section for cryptocurrency overview
+st.header("📊 Cryptocurrency Overview")
+
+# Fetch and display all cryptocurrency data
+with st.spinner('Fetching cryptocurrency data...'):
+    crypto_df = get_all_crypto_info()
+
+if not crypto_df.empty:
+    # Display cryptocurrency data in a grid
+    cols = st.columns(2)
+    
+    with cols[0]:
+        st.subheader("Market Overview")
+        st.dataframe(
+            crypto_df[['name', 'current_price', 'market_cap', 'volume_24h']].rename(columns={
+                'name': 'Name',
+                'current_price': 'Price (USD)',
+                'market_cap': 'Market Cap',
+                'volume_24h': '24h Volume'
+            }).style.format({
+                'Price (USD)': '${:,.2f}',
+                'Market Cap': '${:,.0f}',
+                '24h Volume': '${:,.0f}'
+            })
+        )
+    
+    with cols[1]:
+        st.subheader("Supply Information")
+        st.dataframe(
+            crypto_df[['name', 'circulating_supply', 'total_supply', 'max_supply']].rename(columns={
+                'name': 'Name',
+                'circulating_supply': 'Circulating Supply',
+                'total_supply': 'Total Supply',
+                'max_supply': 'Max Supply'
+            }).style.format({
+                'Circulating Supply': '{:,.0f}',
+                'Total Supply': '{:,.0f}',
+                'Max Supply': '{:,.0f}'
+            })
+        )
+
 # Cryptocurrency selection
 crypto_options = {
-    "Bitcoin": "BTC-USD",  # Yahoo Finance format
-    "Ethereum": "ETH-USD",  # Yahoo Finance format
-    "XRP": "XRP-USD"       # Yahoo Finance format
+    "Bitcoin": "BTC-USD",
+    "Ethereum": "ETH-USD",
+    "Binance Coin": "BNB-USD",
+    "Solana": "SOL-USD",
+    "Ripple": "XRP-USD",
+    "Cardano": "ADA-USD",
+    "Avalanche": "AVAX-USD",
+    "Polkadot": "DOT-USD",
+    "Dogecoin": "DOGE-USD",
+    "Polygon": "MATIC-USD"
 }
 
 selected_crypto = st.selectbox(
