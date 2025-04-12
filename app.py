@@ -5,7 +5,6 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import numpy as np
 import time
-
 from cybo_api import get_data, get_crypto_info
 from datetime import datetime, timedelta
 
@@ -85,7 +84,7 @@ def fetch_crypto_data(symbol, days):
                     end=end_date,
                     interval=interval,
                     progress=False,
-                    threads=False,  # Disable multi-threading to avoid potential issues
+                    threads=False,  # Disable multi-threading to avoid potential issues ?
                     timeout=10
                 )
                 if not df.empty:
