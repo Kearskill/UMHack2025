@@ -22,7 +22,7 @@ def create_features(data):
     
     # Calculate rolling volatility (30-day)
     volatility = returns.rolling(window=30).std().shift(1)  # Add shift(1)
-mean_return = returns.rolling(window=30).mean().shift(1)
+    mean_return = returns.rolling(window=30).mean().shift(1)
     
     # Combine features
     features = pd.concat([
