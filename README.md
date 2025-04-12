@@ -2,6 +2,9 @@
 
 A streamlined cryptocurrency trading dashboard that provides real-time price data and trading signals for Bitcoin, Ethereum, and XRP. The application uses technical analysis to generate BUY, SELL, or HOLD signals based on Moving Average crossover strategy.
 
+## Slides link
+[Slide](https://github.com/Kearskill/UMHack2025/blob/main/UMHackathon_2025_presentation.pdf)
+
 ## Features
 
 - Real-time cryptocurrency price data
